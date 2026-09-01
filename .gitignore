@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build output
+.next/
+out/
+build/
+dist/
+packages/protocol/dist/
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+next-env.d.ts
+
+# Local configuration. Every HASHMARK_ value is public by design, but a real
+# .env names the operator's own indexer, which is nobody else's business.
+.env
+.env.*
+!.env.example
+
+# Test and coverage output
+coverage/
+test-results/
+playwright-report/
+
+# Local runtime state
+data/
+*.log
+
+# Editors and OS
+.vscode/
+.idea/
+.claude/
+.DS_Store
+Thumbs.db

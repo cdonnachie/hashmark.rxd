@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hashmark.rxd.zone/schemas/hashmark-receipt-v1.json",
+  "title": "HashMark receipt",
+  "description": "A pointer to a HashMark record on the Radiant blockchain. A receipt is NEVER evidence on its own: a verifier must fetch the referenced transaction and output, decode it per HASHMARK_PROTOCOL.md, and report the on-chain values rather than the receipt's. Schema validity means only that the document is well-formed enough to be worth looking up.",
+  "type": "object",
+  "required": [
+    "format",
+    "version",
+    "network",
+    "algorithm",
+    "digest",
+    "transactionId",
+    "outputIndex"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "format": {
+      "type": "string",
+      "const": "hashmark-receipt",
+      "description": "Fixed discriminator identifying this document type."
+    },
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Receipt schema version. A higher value is not corruption: it means the receipt is newer than the verifier, which should say so rather than reporting the file as broken."
+    },
+    "network": {
+      "type": "string",
+      "enum": ["radiant-mainnet", "radiant-testnet"],
+      "description": "The chain the transaction lives on. Authoritative identity comes from genesisHash when present; this field is the human-readable name."
+    },
+    "algorithm": {
+      "type": "string",
+      "enum": ["sha256"],
+      "description": "Hash algorithm named by the on-chain record. Determines the required digest length."
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]+$",
+      "description": "The file digest as lowercase hexadecimal. Uppercase is invalid rather than normalized, so a digest has exactly one accepted spelling. Length must match the algorithm: 64 characters for sha256.",
+      "examples": [
+        "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+      ]
+    },
+    "transactionId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Radiant transaction id, 64 lowercase hexadecimal characters."
+    },
+    "outputIndex": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295,
+      "description": "Index of the output carrying the HashMark record. Conventionally 0, but never assume it."
+    },
+    "label": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "The optional public label as recorded on-chain. Note the on-chain limit is 128 UTF-8 BYTES; maxLength here counts characters, so it is a loose upper bound only — the byte-length check happens against the decoded record. Must be escaped before display."
+    },
+    "genesisHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Block 0 hash of the chain, lowercase hex. Optional but strongly recommended: it binds the receipt to a chain by identity rather than by name, so a testnet receipt cannot be read as a mainnet proof. When present it must agree with 'network'.",
+      "examples": [
+        "0000000065d8ed5d8be28d6876b3ffb660ac2a6c0ca59e437e1f7a6f4e003fb4"
+      ]
+    },
+    "expectedSigner": {
+      "type": "string",
+      "pattern": "^[1-9A-HJ-NP-Za-km-z]{26,35}$",
+      "description": "The signer the reader should EXPECT for a v2 mark, as a base58check address. Not a claim about who signed: the record commits to a signer of its own, and the chain wins. A mismatch is a disagreement to report, never grounds to reject the record, and a match is not evidence in itself because anyone can write a receipt. Absent for v1 marks, which carry no signer. Compare by decoded (version byte, hash160), never as base58 strings. This pattern checks shape only; the checksum is verified when the address is decoded.",
+      "examples": [
+        "14XmXG3dSBWZUukGT3xzS9zxpiZ53vgx1i"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "algorithm": { "const": "sha256" } },
+        "required": ["algorithm"]
+      },
+      "then": {
+        "properties": { "digest": { "minLength": 64, "maxLength": 64 } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "network": { "const": "radiant-mainnet" } },
+        "required": ["network", "genesisHash"]
+      },
+      "then": {
+        "properties": {
+          "genesisHash": {
+            "const": "0000000065d8ed5d8be28d6876b3ffb660ac2a6c0ca59e437e1f7a6f4e003fb4"
+          }
+        }
+      }
+    }
+  ],
+  "examples": [
+    {
+      "format": "hashmark-receipt",
+      "version": 1,
+      "network": "radiant-mainnet",
+      "algorithm": "sha256",
+      "digest": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "transactionId": "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b",
+      "outputIndex": 0,
+      "label": "Contract draft",
+      "genesisHash": "0000000065d8ed5d8be28d6876b3ffb660ac2a6c0ca59e437e1f7a6f4e003fb4"
+    }
+  ]
+}

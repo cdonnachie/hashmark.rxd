@@ -1,0 +1,66 @@
+# Security
+
+## Reporting
+
+Report vulnerabilities privately rather than opening a public issue. Include
+what you did, what happened, and what you expected.
+
+If the issue is a way to make a HashMark verify against the wrong file, or to
+make the interface show an unconfirmed or non-existent mark as confirmed, say so
+plainly — those are the two failures that matter most.
+
+## What HashMark never does
+
+- Handle a seed phrase or a private key. No field in the application could
+  accept one, and no code path signs anything. Signing happens in the user's own
+  wallet.
+- Upload a file. There is no upload route — not a disabled one, none at all.
+- Store anything server-side. No database, no accounts, no logs of digests.
+- Send a digest to a third party. There is no analytics of any kind.
+
+## Trust boundaries
+
+| Party | Trusted for | Not trusted for |
+| --- | --- | --- |
+| Radiant nodes | serving transactions and headers | being correct — responses are shape-validated, and the chain identity is checked by genesis hash on connect |
+| An indexer | suggesting where to look | anything. Every hit is re-fetched and re-decoded, so a bad index causes a missing result, never a false one |
+| A receipt | naming a transaction and output | every value in it, including `expectedSigner`. All displayed values come from the chain |
+| A record's signer (v2) | identifying the key that signed the statement | identifying a person, an author or an owner. It is a value to match against a key you already knew |
+| The user's wallet | signing and broadcasting | nothing else. It is the security boundary, not this site |
+| This site | serving the interface | verification, which the browser performs directly against a node |
+
+## Threat model
+
+The full model is in [`HASHMARK_PROTOCOL.md`](HASHMARK_PROTOCOL.md) §2:
+hash collisions, preimage limits on low-entropy files, false ownership claims,
+key substitution, backdating, mempool replacement, chain reorganizations,
+malicious metadata, fake receipts, compromised indexers, wallet impersonation
+and network mismatch.
+
+The one worth singling out is **key substitution** (§2.3.1). A recoverable
+signature does not identify a signer on its own: for any chosen signature values
+there is a public key under which they verify, derived from those values and
+needing no private key. A verifier that recovers a key and then checks the
+signature against that same key has checked nothing. v2 therefore commits to its
+signer in the record *and* inside the signed statement, and verification is a
+comparison against that commitment.
+
+## Known limits
+
+- **A digest is only private if the file is hard to guess.** For a short,
+  predictable document an attacker can hash candidates and confirm a match.
+- **Radiant transactions are public.** Inputs, change and amounts are visible,
+  and marks may be linkable to each other or to a wallet's other activity.
+- **A v2 signer is a deliberate, permanent public link.** The property that makes
+  a signer useful is the property that costs privacy: anyone can find every mark
+  signed by the same key and correlate them, forever. v1 was never private
+  either — the funding address was always on chain — but v2 makes the linkage
+  intentional and trivial. The interface warns before signing and suggests a
+  wallet kept only for marking; that is a mitigation, not a fix.
+- **A signature says which key, never who.** Two marks of one file by different
+  keys are distinguishable but not rankable. Which one matters depends on whose
+  key the reader already expected, and nothing on chain can answer that.
+- **The API rate limiter is per process and in memory.** It is a courtesy
+  limit; deploy behind a reverse-proxy limit as well.
+- **Block timestamps are miner-set** and accurate to roughly an hour. A mark is
+  an upper bound on a file's age, never a precise moment.

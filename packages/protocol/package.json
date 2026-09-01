@@ -1,0 +1,37 @@
+{
+  "name": "@hashmark/protocol",
+  "version": "1.0.0",
+  "description": "HashMark on-chain protocol: encoder, decoder and receipt schema. Framework-independent, zero runtime dependencies.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node scripts/add-esm-extensions.mjs",
+    "prepublishOnly": "npm run build",
+    "typecheck": "tsc --noEmit"
+  },
+  "files": [
+    "dist",
+    "src",
+    "receipt.schema.json",
+    "README.md"
+  ],
+  "keywords": [
+    "radiant",
+    "rxd",
+    "timestamp",
+    "proof-of-existence",
+    "hashmark"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20.9"
+  }
+}

@@ -1,0 +1,179 @@
+@import "tailwindcss";
+
+/*
+ * HashMark design tokens.
+ *
+ * The two accents are not interchangeable — they encode the product's central
+ * idea, which is a boundary:
+ *
+ *   VIOLET  = local. Your device, your file, private. Never leaves the browser.
+ *   CYAN    = chain. Public, permanent, verifiable by anyone.
+ *
+ * Anything violet is yours. Anything cyan is on Radiant forever. Using one
+ * where the other belongs would misstate what is public, so treat these as
+ * semantic, not decorative.
+ */
+/*
+ * `static` emits every token, including those referenced only from the plain
+ * CSS below (.digest, .eyebrow, body) rather than through a generated utility.
+ * Without it Tailwind tree-shakes them and those rules resolve to nothing.
+ */
+@theme static {
+  --color-ink: #08090c;
+  --color-surface: #0e1015;
+  --color-raised: #14171f;
+  --color-line: #222635;
+  --color-line-bright: #333949;
+
+  --color-text: #e8ebf2;
+  --color-muted: #8a92a6;
+  /* 4.77:1 at worst against --color-raised; measured, not eyeballed. */
+  --color-faint: #7b8497;
+
+  /* Local / private / in-your-browser */
+  --color-local: #9d86f9;
+  --color-local-dim: #6b5bb5;
+  --color-local-glow: #9d86f926;
+
+  /* On-chain / permanent / verified */
+  --color-chain: #24e0d4;
+  --color-chain-dim: #14938c;
+  --color-chain-glow: #24e0d426;
+
+  /* Permanently public — used only for the irreversibility warning */
+  --color-caution: #f2a93b;
+  /* No match, or an error */
+  --color-alert: #f2706e;
+
+  --font-display: var(--font-martian), ui-monospace, monospace;
+  --font-body: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  --font-data: var(--font-plex-mono), ui-monospace, "SF Mono", monospace;
+
+  --radius-sm: 3px;
+  --radius: 6px;
+  --radius-lg: 10px;
+}
+
+/*
+ * The interface is committed to dark: it is a fixed part of the identity, and
+ * the accent semantics above depend on a dark ground to read correctly. The
+ * background is stated explicitly rather than inherited.
+ */
+:root {
+  color-scheme: dark;
+}
+
+html {
+  background-color: var(--color-ink);
+}
+
+body {
+  background-color: var(--color-ink);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/*
+ * Ambient ground: a faint block lattice, denser toward the top, suggesting the
+ * chain without drawing a single blockchain cliché. Purely decorative, so it is
+ * hidden from assistive technology by being a background rather than an element.
+ */
+.lattice {
+  background-image:
+    linear-gradient(to right, var(--color-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-line) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 20%, transparent 75%);
+  opacity: 0.5;
+}
+
+/* Focus is never removed, only restyled — keyboard users must always see it. */
+:focus-visible {
+  outline: 2px solid var(--color-chain);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+::selection {
+  background: var(--color-chain);
+  color: var(--color-ink);
+}
+
+/*
+ * A 64-character digest is meant to be compared by eye. Fixed width and a
+ * disambiguated zero are functional requirements here, not styling.
+ */
+.digest {
+  font-family: var(--font-data);
+  font-variant-ligatures: none;
+  font-feature-settings: "zero" 1;
+  letter-spacing: 0.02em;
+  word-break: break-all;
+}
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-faint);
+}
+
+/*
+ * Byte cells settle as hashing progresses. The animation is driven by real
+ * progress, never by a timer, so it cannot imply work that is not happening.
+ *
+ * It animates position only, deliberately. An opacity fade looked better but
+ * measured worse: violet at anything under 0.85 opacity drops the cell text
+ * below 4.5:1, so a staggered fade left digits briefly unreadable — for over
+ * half a second at the end of the stagger. Movement carries the same "landing"
+ * feel with nothing sub-threshold at any frame.
+ */
+@keyframes cell-settle {
+  from {
+    transform: translateY(-2px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.cell-settled {
+  animation: cell-settle 220ms ease-out both;
+}
+
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.sweep::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-local-glow),
+    transparent
+  );
+  animation: sweep 1.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

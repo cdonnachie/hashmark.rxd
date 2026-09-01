@@ -1,0 +1,75 @@
+# Everything here runs offline.
+#
+# The unit tests never open a socket: chain access is behind an injected
+# adapter, and the one module that fetches has its `fetch` stubbed. That is
+# deliberate — a test suite that needs a live Radiant node fails for reasons
+# that have nothing to do with the change under review.
+#
+# The Playwright suite is NOT run here. It drives a real browser against
+# mainnet nodes and, for the wallet flow, a real wallet; it belongs on a
+# machine with a wallet and a person watching, not on a pull request.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        # Covers the app and the protocol package, which has its own tsconfig.
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build
+        # Catches what unit tests cannot: a route that fails to compile, a
+        # client component importing server-only code, a CSP built from a
+        # config value that no longer exists.
+        run: pnpm build
+
+  package:
+    # The protocol package is published for third parties to verify marks
+    # without this application. If it stops building or exporting on its own,
+    # that is a break for them long before it is one for us.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build and verify the published package
+        run: pnpm test:package
