@@ -683,6 +683,43 @@ the reader's job, never the chain's.
 Implementations must not describe a mark, or a signer, as *authentic*,
 *official*, *verified creator*, *owner* or *trusted*.
 
+### 7.6 Binding a mark to a name
+
+It is tempting to resolve the signer through a naming system — WAVE, or any
+other — and report "recorded by whoever owns `company.rxd`". Done naively this
+is **unsound**, and the failure is not subtle.
+
+A name resolves to whatever it points at **now**. A mark was made at some past
+block. Applying a present-tense lookup to a past event gives a wrong answer in
+both directions the moment a name changes hands:
+
+- A genuine mark signed by the previous holder now fails the check, because the
+  name resolves elsewhere. A real record is rejected.
+- Worse, someone who acquires a lapsed or transferred name can make **new**
+  marks that verify as "signed by whoever owns `company.rxd`" — which is true,
+  and which a reader will hear as "the company made this". The timestamp is
+  honest; the identity inference is not.
+
+Names on Radiant have terms and can expire, so acquiring one after it lapses is
+cheap and ordinary, not a theoretical attack.
+
+Two forms are acceptable:
+
+1. **Present tense, and explicit about it.** *"Signed by `14XmXG…vgx1i`, which
+   `company.rxd` resolves to right now."* Two facts, separately sourced, neither
+   presented as a property of the mark.
+2. **Point-in-time resolution.** Establish what the name pointed at **at the
+   block that carried the mark**, by fetching and verifying the chain of
+   modification transactions that changed its target. Then *"recorded by the
+   holder of `company.rxd` at that time"* is a sound statement.
+
+An implementation must not take a name-service index's word for a historical
+target. That is an unverified claim standing behind an identity statement, which
+is the inversion this protocol avoids everywhere else (§2.8).
+
+Until an implementation does the point-in-time work, a name may be shown as
+present-tense context — never beside the mark as though it were part of it.
+
 ## 8. Timestamp limitations
 
 The timestamp of a HashMark is the **block time** of the block containing the
@@ -946,12 +983,12 @@ Every value below can be checked against the chain.
    02 0201
    20 e2c55efb34b6e9d6db008ee72d56bf86456ab3f55ae76488ff677fda88df1f1e
    14 26ba056431ec69cf27eabeaab250d99ddbd895d2
-   41 20d53e2da3de21af2b29c982ef55f2f010d5ed645f8cf1069930dddbaa709f64
-      646fe8d757bb9ecc52f78bbe0eb4dd2aa82233c0ed1908f2baa9e5bc1e21d71ede
+   41 1f750d18df9ab44ba66ced01285a5a067b9ebf7c8ff6b32dddb40cc276c5e98d
+      4c2054937e44a40d7628d80cafdd6a372b0aae8f8bb31dbb4d975273a23e8c9771
 ```
 
 Decoded: version 2, algorithm 1 (sha256), no label. The signature header byte is
-`0x20` = 32, inside `27..34`, giving recovery id 1 and a compressed key.
+`0x1f` = 31, inside `27..34`, giving recovery id 0 and a compressed key.
 
 The statement it covers, byte for byte:
 
@@ -1052,3 +1089,6 @@ block.
       key and to every other mark it signed
 - [ ] presents marks by different signers with equal weight, and never ranks
       them or calls the earliest canonical
+- [ ] if it resolves a signer through a naming system, either says so in the
+      present tense or establishes the name's target at the mark's own block
+      (§7.6) — never applies a present-day lookup to a past event

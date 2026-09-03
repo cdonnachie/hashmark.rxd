@@ -350,6 +350,27 @@ The `next/font` variables must be on `<html>`, not `<body>`: the theme declares
 `--font-display: var(--font-martian), …` at `:root`, and a custom property whose
 value references an undefined variable is invalid at computed-value time.
 
+## Independent implementations
+
+The point of publishing a specification rather than just a verifier is that
+someone else can build one and disagree with you. That has happened.
+
+- **[pyrxd](https://github.com/MudwoodLabs/pyrxd)** (Python) reads and verifies
+  HashMark records, including v2 signatures. It was written from
+  [`HASHMARK_PROTOCOL.md`](HASHMARK_PROTOCOL.md) alone, without reference to
+  this codebase, and interoperated on the first attempt: it independently
+  confirmed that the signed mark at
+  `a1a86ab4503901af4df3d092fcf668b07c03c5cd89240fe918ae70e02e045916` was signed
+  by the key that record commits to.
+
+Two tools built from one document, agreeing about a mark neither of them made,
+is what "anyone can verify this" means in practice. The marks on mainnet are
+part of pyrxd's test set, so drift in either direction shows up quickly.
+
+If you write another, §14 of the protocol document is the conformance checklist,
+and §13 has worked examples — including a real mainnet v2 record you can check
+byte by byte.
+
 ## Documentation
 
 - [`HASHMARK_PROTOCOL.md`](HASHMARK_PROTOCOL.md) — **the specification.** Both
