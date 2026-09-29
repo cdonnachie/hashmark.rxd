@@ -13,6 +13,8 @@ import { describe, expect, it } from "vitest";
 import {
   canonicalAttestationMessage,
   bytesToHex,
+  decodeHashMarkScript,
+  hexToBytes,
   type HashMarkRecord,
 } from "@hashmark/protocol";
 
@@ -188,6 +190,40 @@ describe("verifyAttestation", () => {
     const result = verifyAttestation(v1, GENESIS);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("UNSIGNED");
+  });
+
+  it("refuses a real record whose label was stripped by truncation", () => {
+    // A labelled record cut at the label boundary still DECODES — the label is
+    // optional, so what remains is a well-formed unlabelled record. The
+    // signature is what stops it: the label is inside the signed statement, so
+    // removing it changes the statement and the signature no longer recovers
+    // to the committed signer.
+    //
+    // The bytes are a real mainnet record written by pyrxd, an implementation
+    // built from the specification alone. Using a foreign record here matters:
+    // it checks the property against an encoder we did not write.
+    const full =
+      "6a08484153484d41524b02020120f57d61113ec9601660b8c39b23b0aae8c4885c9fd8f7781a4c7f02b79dc0fc2c" +
+      "1443ed516d7debe4804d46b192b5452c8e1cc8752041" +
+      "1fc3a50a79ca8abca7262d1f6932b074ff51376802353ae03c26ef0015bf03966a7d3d7de2286974c5c739e68469695457dd220408677ed221a3c81c748f2f8d2d" +
+      "27707972786420302e32352e3120776865656c206173207075626c6973686564206f6e2050795049";
+
+    const intact = decodeHashMarkScript(hexToBytes(full)!);
+    expect(intact.ok).toBe(true);
+    if (!intact.ok) return;
+    expect(verifyAttestation(intact.record, GENESIS).ok).toBe(true);
+
+    // Cut the label push off: 133 bytes is the record without it.
+    const stripped = decodeHashMarkScript(hexToBytes(full)!.subarray(0, 133));
+    expect(stripped.ok, "a stripped label still leaves a decodable record").toBe(
+      true,
+    );
+    if (!stripped.ok) return;
+    expect(stripped.record.label).toBeUndefined();
+
+    const result = verifyAttestation(stripped.record, GENESIS);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("SIGNER_MISMATCH");
   });
 
   it("accepts a different signer's valid attestation of the same file", () => {

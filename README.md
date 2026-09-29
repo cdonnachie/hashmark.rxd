@@ -355,17 +355,30 @@ value references an undefined variable is invalid at computed-value time.
 The point of publishing a specification rather than just a verifier is that
 someone else can build one and disagree with you. That has happened.
 
-- **[pyrxd](https://github.com/MudwoodLabs/pyrxd)** (Python) reads and verifies
-  HashMark records, including v2 signatures. It was written from
-  [`HASHMARK_PROTOCOL.md`](HASHMARK_PROTOCOL.md) alone, without reference to
-  this codebase, and interoperated on the first attempt: it independently
-  confirmed that the signed mark at
-  `a1a86ab4503901af4df3d092fcf668b07c03c5cd89240fe918ae70e02e045916` was signed
-  by the key that record commits to.
+- **[pyrxd](https://github.com/MudwoodLabs/pyrxd)** (Python) both **writes and
+  verifies** HashMark records, with a CLI (`pyrxd mark`, `pyrxd verify`) and a
+  [browser verifier](https://mudwoodlabs.github.io/pyrxd/verify/). Its encoder
+  and decoder were written from [`HASHMARK_PROTOCOL.md`](HASHMARK_PROTOCOL.md)
+  alone, without reference to this codebase.
 
-Two tools built from one document, agreeing about a mark neither of them made,
-is what "anyone can verify this" means in practice. The marks on mainnet are
-part of pyrxd's test set, so drift in either direction shows up quickly.
+  It also implements §7.6 form 2 — resolving a WAVE name at the mark's own
+  block by walking the name's update chain, and requiring two servers on
+  different hosts to agree before reporting a result.
+
+The interop goes both ways, which is the part that matters:
+
+- pyrxd verifies our signed mark
+  (`a1a86ab4…045916`) and recovers the same signer.
+- This implementation reads **pyrxd's** mark
+  (`aa66b04662aa5514ed7d0027ff3cbd608d73f3e2b92d4129d810eb576bc0c86e`), its
+  signature verifies against the signer that record commits to, and our encoder
+  re-emits pyrxd's bytes exactly. That record marks the `pyrxd 0.25.1` wheel,
+  and its digest is the sha256 of the 1,722,880-byte file PyPI serves —
+  confirmed by hashing the artifact rather than trusting PyPI's own digest.
+
+Two tools built from one document, each reading records the other wrote, is
+what "anyone can verify this" means in practice. Both sides keep the other's
+marks as fixtures, so drift in either direction shows up quickly.
 
 If you write another, §14 of the protocol document is the conformance checklist,
 and §13 has worked examples — including a real mainnet v2 record you can check

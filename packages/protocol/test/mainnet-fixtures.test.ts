@@ -32,8 +32,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   RADIANT_MAINNET,
+  bytesToHex,
   canonicalAttestationMessage,
   decodeHashMarkScript,
+  encodeHashMarkScript,
   hexToBytes,
 } from "../src/index.js";
 
@@ -46,7 +48,10 @@ interface MainnetFixture {
   readonly script: string;
   readonly version: number;
   readonly digest: string;
+  readonly label?: string;
   readonly signerHash160?: string;
+  /** Which implementation wrote it. See the pyrxd entry below. */
+  readonly writtenBy?: string;
 }
 
 const FIXTURES: readonly MainnetFixture[] = [
@@ -79,6 +84,31 @@ const FIXTURES: readonly MainnetFixture[] = [
     version: 2,
     digest: "e2c55efb34b6e9d6db008ee72d56bf86456ab3f55ae76488ff677fda88df1f1e",
     signerHash160: "26ba056431ec69cf27eabeaab250d99ddbd895d2",
+    writtenBy: "hashmark.rxd",
+  },
+  {
+    // The most valuable fixture in this file, because we did not write it.
+    // pyrxd's encoder was built from HASHMARK_PROTOCOL.md without reference to
+    // this code, so this record tests that we can read output from a foreign
+    // implementation rather than only our own. It is also the only labelled v2
+    // record here, which exercises the label-at-push-5 path on real bytes.
+    //
+    // It marks the pyrxd 0.25.1 wheel. The digest below is the sha256 of the
+    // 1,722,880-byte file PyPI serves for pyrxd-0.25.1-py3-none-any.whl —
+    // checked by hashing the artifact, not by trusting PyPI's own digest.
+    name: "v2, signed, labelled — written by pyrxd, a different implementation",
+    txid: "aa66b04662aa5514ed7d0027ff3cbd608d73f3e2b92d4129d810eb576bc0c86e",
+    blockTime: 1790714023,
+    script:
+      "6a08484153484d41524b02020120f57d61113ec9601660b8c39b23b0aae8c4885c9fd8f7781a4c7f02b79dc0fc2c" +
+      "1443ed516d7debe4804d46b192b5452c8e1cc8752041" +
+      "1fc3a50a79ca8abca7262d1f6932b074ff51376802353ae03c26ef0015bf03966a7d3d7de2286974c5c739e68469695457dd220408677ed221a3c81c748f2f8d2d" +
+      "27707972786420302e32352e3120776865656c206173207075626c6973686564206f6e2050795049",
+    version: 2,
+    digest: "f57d61113ec9601660b8c39b23b0aae8c4885c9fd8f7781a4c7f02b79dc0fc2c",
+    label: "pyrxd 0.25.1 wheel as published on PyPI",
+    signerHash160: "43ed516d7debe4804d46b192b5452c8e1cc87520",
+    writtenBy: "pyrxd",
   },
 ];
 
@@ -100,15 +130,39 @@ describe("mainnet fixtures", () => {
     },
   );
 
-  it("reads the committed signer of the v2 record", () => {
-    const signed = FIXTURES.find((f) => f.version === 2)!;
-    const result = decodeHashMarkScript(hexToBytes(signed.script)!);
+  it("reads the committed signer of every v2 record", () => {
+    for (const signed of FIXTURES.filter((f) => f.version === 2)) {
+      const result = decodeHashMarkScript(hexToBytes(signed.script)!);
+      expect(result.ok, signed.txid).toBe(true);
+      if (!result.ok) continue;
+
+      expect(result.record.signerHash160).toBe(signed.signerHash160);
+      // 65 bytes: header || r || s.
+      expect(result.record.signature).toHaveLength(130);
+      expect(result.record.label).toBe(signed.label);
+    }
+  });
+
+  it("re-emits a foreign implementation's record byte for byte", () => {
+    // The interop check our own records cannot make. pyrxd's encoder and this
+    // one were written from the same document and never from each other; if
+    // either drifts on push encoding, field order or the label position, these
+    // bytes stop matching.
+    const foreign = FIXTURES.find((f) => f.writtenBy === "pyrxd")!;
+    const result = decodeHashMarkScript(hexToBytes(foreign.script)!);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
-    expect(result.record.signerHash160).toBe(signed.signerHash160);
-    // 65 bytes: header || r || s.
-    expect(result.record.signature).toHaveLength(130);
+    const reEmitted = bytesToHex(
+      encodeHashMarkScript({
+        algorithm: result.record.algorithm,
+        digest: result.record.digest,
+        signerHash160: result.record.signerHash160!,
+        signature: result.record.signature!,
+        label: result.record.label,
+      }),
+    );
+    expect(reEmitted).toBe(foreign.script);
   });
 
   it("leaves v1 records unsigned rather than inventing a signer", () => {
@@ -195,15 +249,29 @@ describe("mainnet fixtures", () => {
     }
   });
 
-  it("never accepts a truncation of a real record", () => {
+  it("never lets a truncation pass as the original record", () => {
+    // Most truncations simply fail. One does not, and it is worth being exact
+    // about: cutting a labelled record at the label boundary leaves a
+    // well-formed *unlabelled* record, because the label is optional. That is
+    // the format behaving as specified, not a decoder flaw — so the invariant
+    // is the same one the corruption test uses. A truncation may decode, but it
+    // must never decode to the record it was cut from.
+    //
+    // Stripping a label this way does not get an attacker anything: the label
+    // is inside the signed statement, so the shortened record produces a
+    // different statement and its signature stops verifying. That half is
+    // asserted in the application, where secp256k1 lives.
     for (const fixture of FIXTURES) {
       const original = hexToBytes(fixture.script)!;
+      const baseline = JSON.stringify(decodeHashMarkScript(original));
+
       for (let cut = 1; cut < original.length; cut++) {
         const result = decodeHashMarkScript(original.subarray(0, cut));
+        if (!result.ok) continue;
         expect(
-          result.ok,
-          `${fixture.txid} truncated to ${cut} bytes must not decode`,
-        ).toBe(false);
+          JSON.stringify(result),
+          `${fixture.txid} truncated to ${cut} bytes decoded as the original`,
+        ).not.toBe(baseline);
       }
     }
   });
