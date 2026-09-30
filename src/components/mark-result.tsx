@@ -101,6 +101,15 @@ export function MarkResult({
         <p className="mt-2.5 text-sm leading-relaxed text-muted">
           {state.detail}
         </p>
+        {mark.state !== "unconfirmed" && (
+          <p className="mt-2 text-xs leading-relaxed text-faint">
+            The block and confirmation count are what the connected Radiant node
+            reports. This page does not check the Merkle branch, so a node that
+            misreported the height would move the time this answer is about.
+            Everything above it — the record, and the signature over it — was
+            read from the transaction and checked here.
+          </p>
+        )}
 
         <dl className="mt-6 space-y-5">
           <div>
@@ -185,9 +194,11 @@ export function MarkResult({
             </dd>
             {mark.signer !== undefined && (
               <p className="mt-2 text-xs leading-relaxed text-faint">
-                The key that signed this record. It says who made the mark, not
-                who wrote the file — and it is only meaningful to you if you
-                already recognise this address.
+                The key that signed this statement. It does not say that this
+                key published <em>this</em> transaction: a signed record can be
+                copied byte for byte into anyone else&rsquo;s. It does not say who
+                wrote the file. And it is only meaningful to you if you already
+                recognise this address.
               </p>
             )}
           </div>

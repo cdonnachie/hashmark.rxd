@@ -124,6 +124,30 @@ it. An attacker can still make their own statement about a file with their own
 key — that is expected, and is what §7.5 is about — but cannot make a signature
 verify as a signer someone else committed to.
 
+### 2.3.2 Trusting the server for height and inclusion
+
+A verifier asks a node for a transaction and is told which block holds it and
+how deep that block is. Unless it checks, it is taking that on trust, and the
+timestamp is the thing being trusted: a server that misreports the height moves
+the point in time the whole answer is about.
+
+Verbose `blockchain.transaction.get` does not prove inclusion. Neither does a
+confirmation count. Both are assertions by whoever answered.
+
+Two responses, and an implementation should be explicit about which it makes:
+
+- **Say so.** Report the height and confirmations as *what the endpoint says*,
+  and do not imply they were checked. This is honest and costs nothing.
+- **Check it.** Fetch `blockchain.transaction.get_merkle`, verify the Merkle
+  branch against the header from `blockchain.block.header`, and follow the
+  header chain far enough to satisfy yourself of its work (§14, step 6). Then
+  inclusion is proved rather than asserted.
+
+Asking several endpoints is weaker than it looks: independence is a property of
+*operators*, not of hostnames, and two endpoints run by one party are one
+source. Merkle verification needs no independence at all, which is why it is
+the better answer where a timestamp carries weight.
+
 ### 2.4 Mempool replacement and disappearance
 
 An unconfirmed transaction is **not proof of anything**. It can be evicted,
@@ -1068,6 +1092,9 @@ block.
 - [ ] renders digests as lowercase hex and rejects uppercase
 - [ ] re-verifies every indexed result against the chain
 - [ ] distinguishes unconfirmed, confirming and confirmed
+- [ ] either verifies inclusion with a Merkle branch, or presents the height
+      and confirmation count as the endpoint's word rather than as checked
+      fact (§2.3.2)
 - [ ] never presents a mark as proving authorship, ownership or legal validity
 
 **Additionally, for v2 attestations:**
