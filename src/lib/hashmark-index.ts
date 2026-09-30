@@ -22,20 +22,37 @@ import "server-only";
 
 import { HashMarkLookupUnavailable, type IndexHit } from "@/lib/verify";
 
-/** Base URL of the RXinDexer REST API, e.g. `http://10.0.0.5:8000`. */
-const INDEX_URL = (process.env.HASHMARK_INDEX_URL ?? "").replace(/\/+$/, "");
+/**
+ * RXinDexer REST endpoints, tried in order, comma-separated.
+ *
+ * Several are allowed for the same reason several Radiant nodes are: an index
+ * that cannot be reached must degrade to "cannot search", and one reachable
+ * spare turns that outage into a slower answer instead. A single URL is still
+ * the common case and needs no commas.
+ *
+ * They are NOT cross-checked against each other. The index is a hint and every
+ * hit is re-fetched and re-decoded against the chain, so agreement between two
+ * indexes would prove nothing that re-verification does not already prove. What
+ * failover buys is availability, which is the only thing at risk here.
+ */
+const INDEX_URLS: readonly string[] = (process.env.HASHMARK_INDEX_URL ?? "")
+  .split(",")
+  .map((entry) => entry.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
 
 /**
- * Short by design. A verifier is waiting on this, and a slow index must fail
- * loudly as "cannot search" rather than hang until the page looks broken.
+ * Short by design, and per endpoint. A verifier is waiting on this, and a slow
+ * index must fail loudly as "cannot search" rather than hang until the page
+ * looks broken. With two endpoints the worst case is twice this, which is why
+ * it is not generous.
  */
 const TIMEOUT_MS = 5_000;
 
 const DIGEST_RE = /^[0-9a-f]{64}$/;
 const TXID_RE = /^[0-9a-f]{64}$/;
 
-/** Whether an index address is configured at all. */
-export const indexConfigured = INDEX_URL !== "";
+/** Whether any index address is configured at all. */
+export const indexConfigured = INDEX_URLS.length > 0;
 
 /**
  * Every failure mode collapses to {@link HashMarkLookupUnavailable}: not
@@ -47,25 +64,37 @@ export const indexConfigured = INDEX_URL !== "";
 async function indexGet(path: string): Promise<unknown> {
   if (!indexConfigured) throw new HashMarkLookupUnavailable();
 
-  let response: Response;
-  try {
-    response = await fetch(`${INDEX_URL}${path}`, {
-      headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      cache: "no-store",
-    });
-  } catch {
-    // The upstream error is not propagated: it carries the internal hostname.
-    throw new HashMarkLookupUnavailable();
+  for (const base of INDEX_URLS) {
+    let response: Response;
+    try {
+      response = await fetch(`${base}${path}`, {
+        headers: { accept: "application/json" },
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+        cache: "no-store",
+      });
+    } catch {
+      // Unreachable or timed out. The upstream error is deliberately not
+      // propagated even to the next iteration's log: it carries the internal
+      // hostname.
+      continue;
+    }
+
+    if (!response.ok) continue;
+
+    try {
+      return await response.json();
+    } catch {
+      // Answered, but not with JSON. Treat it as broken and try the next.
+      continue;
+    }
   }
 
-  if (!response.ok) throw new HashMarkLookupUnavailable();
-
-  try {
-    return await response.json();
-  } catch {
-    throw new HashMarkLookupUnavailable();
-  }
+  // Every endpoint failed. Note what this does NOT do: a well-formed empty
+  // result from the first endpoint is returned as-is and never retried
+  // elsewhere. "[]" means "not marked", which is the common answer, and
+  // shopping it around would turn the ordinary case into a request to every
+  // server while making an empty list look like a failure.
+  throw new HashMarkLookupUnavailable();
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

@@ -145,6 +145,90 @@ describe("lookupDigest", () => {
   });
 });
 
+describe("several endpoints", () => {
+  /** A fetch mock that answers per-host, and records the order of calls. */
+  function respondPerHost(handlers: Record<string, () => Response>) {
+    const calls: string[] = [];
+    const fetchMock = vi.fn<(url: string | URL | Request) => Promise<Response>>(
+      async (url) => {
+        const href = String(url);
+        const host = new URL(href).host;
+        calls.push(host);
+        const handler = handlers[host];
+        if (!handler) throw new Error("ECONNREFUSED " + host);
+        return handler();
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    return calls;
+  }
+
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "content-type": "application/json" },
+    });
+
+  it("falls through to the next endpoint when the first is unreachable", async () => {
+    const calls = respondPerHost({
+      "b.invalid:8000": () => json([{ txid: TXID, output_index: 1 }]),
+    });
+    const { lookupDigest } = await loadIndex("http://a.invalid:8000,http://b.invalid:8000");
+
+    await expect(lookupDigest(DIGEST)).resolves.toEqual([
+      { txid: TXID, outputIndex: 1, height: 0 },
+    ]);
+    expect(calls).toEqual(["a.invalid:8000", "b.invalid:8000"]);
+  });
+
+  it("falls through on a non-200 as well as on a dead host", async () => {
+    const calls = respondPerHost({
+      "a.invalid:8000": () => json({ error: "boom" }, 503),
+      "b.invalid:8000": () => json([]),
+    });
+    const { lookupDigest } = await loadIndex("http://a.invalid:8000,http://b.invalid:8000");
+
+    await expect(lookupDigest(DIGEST)).resolves.toEqual([]);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("does not shop an empty result around", async () => {
+    // "[]" is the common answer and a real one. Retrying it elsewhere would
+    // make every unmarked file cost a request to every endpoint, and would
+    // edge towards treating "not marked" as a failure.
+    const calls = respondPerHost({
+      "a.invalid:8000": () => json([]),
+      "b.invalid:8000": () => json([{ txid: TXID, output_index: 0 }]),
+    });
+    const { lookupDigest } = await loadIndex("http://a.invalid:8000,http://b.invalid:8000");
+
+    await expect(lookupDigest(DIGEST)).resolves.toEqual([]);
+    expect(calls).toEqual(["a.invalid:8000"]);
+  });
+
+  it("reports unavailable only when every endpoint has failed", async () => {
+    const calls = respondPerHost({});
+    const { lookupDigest, HashMarkLookupUnavailable } = await loadIndex(
+      "http://a.invalid:8000,http://b.invalid:8000,http://c.invalid:8000",
+    );
+
+    await expect(lookupDigest(DIGEST)).rejects.toThrow(HashMarkLookupUnavailable);
+    expect(calls).toEqual([
+      "a.invalid:8000",
+      "b.invalid:8000",
+      "c.invalid:8000",
+    ]);
+  });
+
+  it("tolerates whitespace and trailing slashes in the list", async () => {
+    const calls = respondPerHost({ "a.invalid:8000": () => json([]) });
+    const { lookupDigest } = await loadIndex(" http://a.invalid:8000/ , ");
+
+    await expect(lookupDigest(DIGEST)).resolves.toEqual([]);
+    expect(calls).toEqual(["a.invalid:8000"]);
+  });
+});
+
 describe("indexStatus", () => {
   it("reads the backfill fields RXinDexer reports", async () => {
     respondWith({

@@ -142,7 +142,7 @@ HashMark holds no secrets: no keys, no database, no accounts. See
 | `NEXT_PUBLIC_PHOTONIC_CONNECT_URL` | `https://photonic-wallet.com/#/connect` |
 | `NEXT_PUBLIC_EXPLORER_TX_URL` | `https://explorer2.rxd-radiant.com/tx/{txid}` |
 | `NEXT_PUBLIC_FEE_RATE` | `10000` photons per byte |
-| `HASHMARK_INDEX_URL` | unset — fingerprint search is disabled without it |
+| `HASHMARK_INDEX_URL` | unset — fingerprint search is disabled without it. Comma-separated for failover |
 
 `NEXT_PUBLIC_` values are inlined at build time. Set them **before**
 `pnpm build`, not just at runtime. `HASHMARK_INDEX_URL` is the one variable
@@ -174,7 +174,17 @@ Point HashMark at it and fingerprint search works:
 
 ```bash
 HASHMARK_INDEX_URL="http://10.0.0.5:8000"
+
+# Or several, tried in order, so one index being down is a slower answer
+# rather than "search is unavailable":
+HASHMARK_INDEX_URL="http://10.0.0.5:8000,http://10.0.0.6:8000"
 ```
+
+Spares are not cross-checked against each other. The index is a hint and every
+hit is re-verified against the chain, so two indexes agreeing would prove
+nothing that re-verification does not; availability is the only thing a spare
+is for. An empty result from the first endpoint is the answer rather than a
+reason to ask the next, since "never marked" is the common case.
 
 REST rather than the ElectrumX `hashmark.lookup` method: it is plain HTTP from
 the server that already has the index on its network, with no WebSocket to
