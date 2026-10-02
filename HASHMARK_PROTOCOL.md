@@ -165,6 +165,19 @@ anything worth relying on sits, stay cheap forever. Only marks above it need
 the linear walk, and a mark that recent has little burial to show anyway, so
 caution is the correct answer for independent reasons.
 
+**Checkpoints need no coordination between implementations.** A checkpoint
+root is a commitment to a prefix of the chain, so two correct roots at
+different heights cannot disagree about any block both cover; they are two
+vantage points on one object. Implementations shipping different checkpoints
+differ only in *coverage* — one may prove a recent mark the other can only
+disclose — and the labelling rule above is what keeps that from reading as two
+answers. If two implementations ever both claim *proof* and disagree, one
+anchor was poisoned when it was generated, and that is a detection, not an
+ambiguity: independently generated anchors are the mechanism that catches a
+false chain fed to someone's node at generation time. Coordinating checkpoints
+across implementations would replace that mechanism with a monoculture that
+fails in unanimous silence. Generate them separately.
+
 Caching headers is sound, with one rule: cache to avoid re-fetching, never to
 avoid re-verifying. Re-hashing a few thousand headers costs microseconds while
 the round trips cost everything, so a verifier that always re-checks the chain
