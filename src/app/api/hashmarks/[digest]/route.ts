@@ -80,6 +80,12 @@ export async function GET(
           // node's word. "contradicted": the node's own proofs disagree with
           // the block it reports — treat the date as unknown.
           blockProof: mark.inclusion?.kind ?? "unproved",
+          // A lower bound proved against the shipped checkpoint, or null.
+          // `confirmations` above is the node's own count.
+          provedMinConfirmations:
+            mark.inclusion?.kind === "proved"
+              ? mark.inclusion.provedMinConfirmations
+              : null,
         })),
       },
       { headers: { "cache-control": "private, max-age=15" } },

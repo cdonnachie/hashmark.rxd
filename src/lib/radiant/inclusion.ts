@@ -11,9 +11,11 @@
  *   2. the header's branch must land on the shipped checkpoint root
  *      — this header is the one at this height on the chain we anchor to.
  *
- * What it does NOT prove is burial depth. Confirmations need every header
- * from the block to the tip and their work, which is a different job; they
- * remain the server's word and are labelled so.
+ * Burial depth is proved only as a lower bound: the anchored tree contains
+ * every header up to the checkpoint, so a block inside it has at least
+ * `checkpointHeight - height + 1` confirmations on the anchored chain. Depth
+ * beyond the checkpoint would need the headers above it and their work, a
+ * different job; the server's full count stays its word and is labelled so.
  *
  * Three outcomes, and the middle one is deliberately not an error: a mark
  * newer than the checkpoint, or a server that cannot produce proofs, is not a
@@ -36,6 +38,19 @@ export type InclusionResult =
       /** Block hash, display order. */
       readonly blockHash: string;
       readonly checkpointHeight: number;
+      /**
+       * A lower bound on burial depth, proved against the same anchor:
+       * `checkpointHeight - height + 1`.
+       *
+       * The checkpoint root commits to every header from genesis to its
+       * height, and the header proof places this block inside that tree, so
+       * the anchored chain has at least this many blocks from this one
+       * onwards. It costs no extra network call and carries the same trust as
+       * the inclusion proof itself. Blocks newer than the checkpoint are not
+       * counted, so the true depth is usually higher; the server's own count
+       * is reported separately and labelled as its word.
+       */
+      readonly provedMinConfirmations: number;
     }
   | {
       /** Could not prove — the server's word stands, and is labelled so. */
@@ -115,6 +130,7 @@ export function checkInclusion(input: {
     blockTime: header.time,
     blockHash: bytesToHex(reverseBytes(header.hash)),
     checkpointHeight: checkpoint.height,
+    provedMinConfirmations: checkpoint.height - input.height + 1,
   };
 }
 

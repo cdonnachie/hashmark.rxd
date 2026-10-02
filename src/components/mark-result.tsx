@@ -93,10 +93,22 @@ export function MarkResult({
           >
             {state.label}
           </span>
-          <span className="text-xs text-muted">
-            {mark.confirmations.toLocaleString()}{" "}
-            {mark.confirmations === 1 ? "confirmation" : "confirmations"}
-          </span>
+          {mark.inclusion?.kind === "proved" ? (
+            <span className="text-xs text-muted">
+              <span className="text-text">
+                at least{" "}
+                {mark.inclusion.provedMinConfirmations.toLocaleString()}{" "}
+                confirmations, proved
+              </span>
+              {" · "}
+              {mark.confirmations.toLocaleString()} reported by the node
+            </span>
+          ) : (
+            <span className="text-xs text-muted">
+              {mark.confirmations.toLocaleString()}{" "}
+              {mark.confirmations === 1 ? "confirmation" : "confirmations"}
+            </span>
+          )}
         </div>
         <p className="mt-2.5 text-sm leading-relaxed text-muted">
           {state.detail}
@@ -280,8 +292,10 @@ function BlockProof({ mark }: { mark: VerifiedMark }) {
         {inclusion.height.toLocaleString()}, and that the block belongs to the
         chain anchored by the checkpoint this build ships at height{" "}
         {inclusion.checkpointHeight.toLocaleString()}, so the date above was
-        read from a verified header. The confirmation count is still the
-        connected node&rsquo;s word.
+        read from a verified header. The same anchor proves at least{" "}
+        {inclusion.provedMinConfirmations.toLocaleString()} confirmations,
+        counting only blocks up to the checkpoint; the node&rsquo;s higher
+        count includes newer blocks and remains its word.
       </p>
     );
   }

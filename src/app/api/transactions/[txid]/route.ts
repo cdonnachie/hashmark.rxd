@@ -51,6 +51,10 @@ export async function GET(
           label: mark.record.label ?? null,
           signer: mark.signer ?? null,
           blockProof: mark.inclusion?.kind ?? "unproved",
+          provedMinConfirmations:
+            mark.inclusion?.kind === "proved"
+              ? mark.inclusion.provedMinConfirmations
+              : null,
         })),
         problems: problems.map((problem) => ({
           outputIndex: problem.index,

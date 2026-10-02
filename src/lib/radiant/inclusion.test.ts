@@ -49,6 +49,18 @@ describe("checkInclusion against a real mainnet proof", () => {
     expect(result.blockTime).toBe(1788272741);
   });
 
+  it("proves a lower bound on depth from the same anchor", () => {
+    // 469,251 - 460,572 + 1. Every header in that range is committed to by
+    // the checkpoint root, and this block is proved to sit inside it.
+    const result = checkInclusion(base);
+    expect(result.kind).toBe("proved");
+    if (result.kind !== "proved") return;
+    expect(result.provedMinConfirmations).toBe(
+      fixture.checkpoint.height - fixture.height + 1,
+    );
+    expect(result.provedMinConfirmations).toBe(8680);
+  });
+
   it("ships the checkpoint the fixture was proved against", () => {
     // If someone regenerates one without the other, every real proof breaks
     // in production while this file still passes. Keep them in step.
