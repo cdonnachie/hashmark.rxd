@@ -75,6 +75,11 @@ export async function GET(
           // all — never null because a check was skipped, since a record whose
           // signature fails is not returned as a mark.
           signer: mark.signer ?? null,
+          // "proved": block placement checked against the shipped checkpoint,
+          // and blockTime read from the verified header. "unproved": the
+          // node's word. "contradicted": the node's own proofs disagree with
+          // the block it reports — treat the date as unknown.
+          blockProof: mark.inclusion?.kind ?? "unproved",
         })),
       },
       { headers: { "cache-control": "private, max-age=15" } },

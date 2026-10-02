@@ -24,6 +24,7 @@ import type {
   RadiantChain,
   TransactionDetails,
 } from "@/lib/radiant/chain";
+import { proveInclusion, type InclusionResult } from "@/lib/radiant/inclusion";
 
 export interface VerifiedMark {
   readonly record: HashMarkRecord;
@@ -38,8 +39,18 @@ export interface VerifiedMark {
   readonly confirmations: number;
   readonly state: ConfirmationState;
   readonly blockHash?: string | undefined;
-  /** Unix seconds. Present only once confirmed — see HASHMARK_PROTOCOL.md §8. */
+  /**
+   * Unix seconds. Present only once confirmed — see HASHMARK_PROTOCOL.md §8.
+   * When `inclusion` is proved, this is read from the proved header rather
+   * than taken from the server's report.
+   */
   readonly blockTime?: number | undefined;
+  /**
+   * Whether the block placement was proved against the shipped checkpoint,
+   * fell back to the server's word, or was contradicted by the server's own
+   * proofs. Burial depth is never covered: confirmations stay reported.
+   */
+  readonly inclusion?: InclusionResult | undefined;
 }
 
 export type MatchOutcome =
@@ -96,6 +107,17 @@ export async function verifyTransaction(
 ): Promise<TransactionVerification> {
   const transaction = await chain.getTransaction(txid);
 
+  // Once per transaction, not per mark: every output shares the block. A
+  // failure here never fails verification — the record and its signature are
+  // checked either way — it only decides how the block placement is labelled.
+  const inclusion = await proveInclusion(
+    chain,
+    transaction.txid,
+    transaction.confirmations,
+  );
+  const blockTime =
+    inclusion.kind === "proved" ? inclusion.blockTime : transaction.blockTime;
+
   const marks: VerifiedMark[] = [];
   const problems: OutputProblem[] = [];
 
@@ -140,7 +162,8 @@ export async function verifyTransaction(
       confirmations: transaction.confirmations,
       state: transaction.state,
       blockHash: transaction.blockHash,
-      blockTime: transaction.blockTime,
+      blockTime,
+      inclusion,
     });
   }
 

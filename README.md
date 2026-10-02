@@ -88,7 +88,13 @@ scripts/               manual, network-touching tools
    confirmation state is always computed from the current chain tip rather than
    stored; and any screen that says it is tracking a transaction actually polls
    until it settles.
-4. **A signer is matched, never derived.** A v2 record commits to the key that
+4. **A block is proved, not reported.** The server hands over two Merkle
+   branches and the block header; the transaction must lead to the header, and
+   the header must lead to a checkpoint root this build ships. So a node cannot
+   move a mark to a different block or date — it can only fail to answer, which
+   the interface reports as "the node's word" rather than as a fault. Burial
+   depth is not proved and is labelled so.
+5. **A signer is matched, never derived.** A v2 record commits to the key that
    signed it, and verification recovers a key from the signature and requires it
    to hash to that commitment. Recovering a key and calling it the signer would
    prove nothing: for any chosen signature there is a key under which it
@@ -204,6 +210,32 @@ its signature is re-checked against the signer it commits to. A wrong or
 tampered index costs a result; it cannot fabricate one. The indexer does not
 verify signatures itself, and should not: it would need secp256k1 and the
 genesis hash to prove something the client proves anyway.
+
+## Refreshing the block-proof checkpoint
+
+Block proofs anchor to one constant, `src/lib/radiant/checkpoint.ts`: a root
+over every block header up to some height. Every mark below that height is
+proved with about twenty hashes and stays proved forever, so a stale checkpoint
+never breaks anything — marks newer than it simply fall back to the node's word,
+which is all any mark got before. Refreshing is a ratchet, not a chore: do it
+whenever you release for some other reason.
+
+```bash
+npx tsx scripts/gen-checkpoint.ts
+```
+
+It takes the root from the primary server, requires byte-identical agreement
+from servers run by **other operators** (at least one independent agreement is
+mandatory), then proves a real mainnet mark against the root with the same code
+the application runs. A disagreement or a failed self-check prints nothing.
+Paste the constant into `checkpoint.ts` and the fixture into
+`src/lib/radiant/__fixtures__/inclusion-proof.json`; a test fails if the two are
+out of step.
+
+Two rules from the protocol document apply to this value. It is never fetched
+at runtime — anything fetched may corroborate, nothing fetched may anchor. And
+it is deliberately not coordinated with other implementations: independently
+generated anchors are what would detect one of them being fed a false chain.
 
 ## Publishing the protocol package
 

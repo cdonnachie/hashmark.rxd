@@ -101,15 +101,7 @@ export function MarkResult({
         <p className="mt-2.5 text-sm leading-relaxed text-muted">
           {state.detail}
         </p>
-        {mark.state !== "unconfirmed" && (
-          <p className="mt-2 text-xs leading-relaxed text-faint">
-            The block and confirmation count are what the connected Radiant node
-            reports. This page does not check the Merkle branch, so a node that
-            misreported the height would move the time this answer is about.
-            Everything above it — the record, and the signature over it — was
-            read from the transaction and checked here.
-          </p>
-        )}
+        {mark.state !== "unconfirmed" && <BlockProof mark={mark} />}
 
         <dl className="mt-6 space-y-5">
           <div>
@@ -266,5 +258,57 @@ export function MarkResult({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * What is known about the block, and how.
+ *
+ * Three honest sentences for three situations. The proved case says what was
+ * proved and what was not (depth); the fallback names its reason so it never
+ * reads as a fault in the mark; the contradicted case is the only one in
+ * alarm colours, because only there did something actually go wrong.
+ */
+function BlockProof({ mark }: { mark: VerifiedMark }) {
+  const inclusion = mark.inclusion;
+
+  if (inclusion?.kind === "proved") {
+    return (
+      <p className="mt-2 text-xs leading-relaxed text-faint">
+        <span className="text-chain">Block proved.</span> This page checked
+        that the transaction is in block{" "}
+        {inclusion.height.toLocaleString()}, and that the block belongs to the
+        chain anchored by the checkpoint this build ships at height{" "}
+        {inclusion.checkpointHeight.toLocaleString()}, so the date above was
+        read from a verified header. The confirmation count is still the
+        connected node&rsquo;s word.
+      </p>
+    );
+  }
+
+  if (inclusion?.kind === "contradicted") {
+    return (
+      <p
+        role="alert"
+        className="mt-2 text-xs leading-relaxed text-alert"
+      >
+        The connected node&rsquo;s own proofs do not support the block it
+        reports for this transaction ({inclusion.detail}). Treat the date as
+        unknown. The record and its signature are unaffected, but where and
+        when it was confirmed cannot be trusted from this node.
+      </p>
+    );
+  }
+
+  const why =
+    inclusion?.reason === "ABOVE_CHECKPOINT"
+      ? "This mark is newer than the checkpoint this build ships, so its block cannot be proved yet; a later build will cover it."
+      : "The connected node could not supply inclusion proofs.";
+  return (
+    <p className="mt-2 text-xs leading-relaxed text-faint">
+      The block and confirmation count are the connected node&rsquo;s word.{" "}
+      {why} This is not a problem with the mark: the record and its signature
+      were read from the transaction and checked here either way.
+    </p>
   );
 }

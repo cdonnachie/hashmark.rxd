@@ -178,6 +178,79 @@ export class RadiantChain {
     return { transaction, records };
   }
 
+  /**
+   * Merkle branch tying a transaction to its block's transaction tree.
+   *
+   * The height is an input, not a trusted fact: a wrong height simply fails
+   * here or produces a branch that lands on the wrong root. The proof
+   * certifies whatever height it is asked about — which is why the caller may
+   * derive it from the server's own confirmation count without circularity.
+   */
+  async getMerkleProof(
+    txid: string,
+    height: number,
+  ): Promise<{ branchHex: readonly string[]; position: number }> {
+    if (!isTxid(txid)) {
+      throw new ElectrumError("transaction id must be 64 lowercase hex characters");
+    }
+    if (!Number.isInteger(height) || height < 0) {
+      throw new ElectrumError("height must be a non-negative integer");
+    }
+
+    const raw = asRecord(
+      await this.client.call("blockchain.transaction.get_merkle", [txid, height]),
+      "merkle proof",
+    );
+    const branch = raw["merkle"];
+    const position = raw["pos"];
+    if (
+      !Array.isArray(branch) ||
+      !branch.every((h) => typeof h === "string" && /^[0-9a-f]{64}$/.test(h)) ||
+      typeof position !== "number" ||
+      !Number.isInteger(position) ||
+      position < 0
+    ) {
+      throw new ElectrumError("server returned a malformed merkle proof");
+    }
+    return { branchHex: branch as string[], position };
+  }
+
+  /**
+   * A block header with a branch proving it belongs to the header tree
+   * rooted at `cpHeight` — ElectrumX's checkpoint mechanism, which is what
+   * lets one shipped root cover every header below it in ~20 hashes.
+   */
+  async getBlockHeaderProof(
+    height: number,
+    cpHeight: number,
+  ): Promise<{ headerHex: string; branchHex: readonly string[]; rootHex: string }> {
+    if (
+      !Number.isInteger(height) || height < 0 ||
+      !Number.isInteger(cpHeight) || cpHeight < height
+    ) {
+      throw new ElectrumError("header proof needs 0 <= height <= cpHeight");
+    }
+
+    const raw = asRecord(
+      await this.client.call("blockchain.block.header", [height, cpHeight]),
+      "header proof",
+    );
+    const headerHex = raw["header"];
+    const branch = raw["branch"];
+    const root = raw["root"];
+    if (
+      typeof headerHex !== "string" ||
+      !/^[0-9a-f]{160}$/.test(headerHex) ||
+      !Array.isArray(branch) ||
+      !branch.every((h) => typeof h === "string" && /^[0-9a-f]{64}$/.test(h)) ||
+      typeof root !== "string" ||
+      !/^[0-9a-f]{64}$/.test(root)
+    ) {
+      throw new ElectrumError("server returned a malformed header proof");
+    }
+    return { headerHex, branchHex: branch as string[], rootHex: root };
+  }
+
   /** Spendable, non-token-bearing UTXOs for an Electrum scripthash. */
   async listUnspent(scriptHash: string): Promise<Utxo[]> {
     if (!/^[0-9a-f]{64}$/.test(scriptHash)) {
