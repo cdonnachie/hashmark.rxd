@@ -148,6 +148,32 @@ Asking several endpoints is weaker than it looks: independence is a property of
 source. Merkle verification needs no independence at all, which is why it is
 the better answer where a timestamp carries weight.
 
+**Two costs, and the protocol already answers the expensive one.** Proving
+inclusion needs the header at that height; trusting that header needs it linked
+to something already trusted. Walking header by header from a fixed starting
+point is linear in the distance, so it grows as the chain does.
+
+ElectrumX avoids the walk: `blockchain.block_header(height, cp_height)` returns
+the header *plus a Merkle branch proving it belongs to the header tree rooted at
+`cp_height`, and `blockchain.block.headers(start, count, cp_height)` does the
+same for a range. A verifier that knows one root for a checkpoint height can
+then prove any header below it with roughly twenty hashes instead of thousands
+of downloads, and that proof does not get more expensive as the chain grows.
+
+The asymmetry falls the right way. Marks *below* the checkpoint, which is where
+anything worth relying on sits, stay cheap forever. Only marks above it need
+the linear walk, and a mark that recent has little burial to show anyway, so
+caution is the correct answer for independent reasons.
+
+Caching headers is sound, with one rule: cache to avoid re-fetching, never to
+avoid re-verifying. Re-hashing a few thousand headers costs microseconds while
+the round trips cost everything, so a verifier that always re-checks the chain
+it loaded keeps the cache out of its trust base — a poisoned cache then fails
+verification rather than passing it. A *signed* checkpoint is a different
+matter: it is a change of trust model rather than an optimisation, and an
+implementation using one should say whose signature it is relying on rather
+than describing the result as proved.
+
 ### 2.4 Mempool replacement and disappearance
 
 An unconfirmed transaction is **not proof of anything**. It can be evicted,
